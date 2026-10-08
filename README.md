@@ -4,7 +4,7 @@ A terminal Spotify music browser and player. Litefy controls the local `spotifyd
 
 ## Screenshots
 
-![Litefy running in the terminal](screenshots/litefy.png)
+![Litefy running in the terminal](screenshots/preview.gif)
 
 ## Install
 

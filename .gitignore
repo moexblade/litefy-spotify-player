@@ -1,0 +1,21 @@
+# Python environment and generated files
+.venv/
+__pycache__/
+*.py[cod]
+
+# Local credentials and Spotify token caches
+.env
+.env.*
+!.env.example
+token.json
+.cache/
+
+# Local backup copies
+backups/
+
+# Editor and operating-system files
+.DS_Store
+*.swp
+*.swo
+.idea/
+.vscode/

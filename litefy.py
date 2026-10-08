@@ -873,10 +873,9 @@ class AlbumArt:
 
 # ============================== UI ==============================
 
-HINT_HOME = "q exit (music on) · Q stop+exit · space play · o artist · n/p skip"
-HINT_HOME_LIB = "←/→ seek · +/- vol · s/r · l/f lib · / search · u queue · d devices · h/m"
-HINT_LIST = "q exit (music on) · Q stop+exit · ↑/↓ move · ←/→ tabs · enter open/play · P all · a queue"
-LIBRARY_KEYS = "l playlists    f liked    / search    u queue    d devices"
+HINT_HOME = "? Help · Space Play/Pause · / Search · q Exit · Q Stop"
+HINT_LIST = "? Help · ↑/↓ Select · Enter Open/Play · Esc Back · q Exit · Q Stop"
+LIBRARY_KEYS = "l Playlists · f Liked songs · / Search · u Queue · d Devices · ? Help"
 MIN_H, MIN_W = 18, 60
 
 
@@ -887,6 +886,7 @@ class UI:
         self.art = AlbumArt()
         self.running = True
         self.stop_spotifyd_on_exit = False
+        self.help_page: Optional[int] = None
         self.scr = None
         self._pairs: dict = {}
         self._artist_images: dict[str, Optional[str]] = {}
@@ -896,6 +896,7 @@ class UI:
         p = player
         self.global_keys = {
             ord("q"): self.quit, ord("Q"): self.quit_and_stop,
+            ord("?"): self.toggle_help,
             ord(" "): p.toggle, ord("n"): p.next, ord("p"): p.previous,
             curses.KEY_RIGHT: lambda: p.seek_by(SEEK_MS),
             curses.KEY_LEFT: lambda: p.seek_by(-SEEK_MS),
@@ -913,11 +914,10 @@ class UI:
         }
         b = self.browser
         self.list_keys = {
-            curses.KEY_DOWN: lambda: b.move(1), ord("j"): lambda: b.move(1),
-            curses.KEY_UP: lambda: b.move(-1), ord("k"): lambda: b.move(-1),
+            curses.KEY_DOWN: lambda: b.move(1),
+            curses.KEY_UP: lambda: b.move(-1),
             curses.KEY_LEFT: lambda: self.switch_search_tab(-1),
             curses.KEY_RIGHT: lambda: self.switch_search_tab(1),
-            curses.KEY_NPAGE: lambda: b.move(10), curses.KEY_PPAGE: lambda: b.move(-10),
             10: self.activate, 13: self.activate, curses.KEY_ENTER: self.activate,
             ord("P"): self.play_selected,
             ord("a"): self.enqueue_selected,
@@ -934,6 +934,9 @@ class UI:
     def quit_and_stop(self):
         self.stop_spotifyd_on_exit = True
         self.running = False
+
+    def toggle_help(self):
+        self.help_page = None if self.help_page is not None else 0
 
     def open(self, title: str, fetch: Callable):
         self.browser.load(title, fetch)
@@ -1022,6 +1025,13 @@ class UI:
     def draw(self):
         self.scr.erase()
         h, w = self.scr.getmaxyx()
+        if self.help_page is not None:
+            if h < MIN_H or w < MIN_W:
+                self.put(0, 0, f"Terminal too small (need {MIN_W}x{MIN_H}); press ? or Esc to close")
+            else:
+                self.draw_help(h, w)
+            self.scr.refresh()
+            return
         if h < MIN_H or w < MIN_W:
             self.put(0, 0, f"Terminal too small (need {MIN_W}x{MIN_H})")
         else:
@@ -1032,6 +1042,72 @@ class UI:
             self.draw_list(sep, h, w)
             self.draw_footer(h)
         self.scr.refresh()
+
+    def draw_help(self, h: int, w: int):
+        if h < MIN_H or w < MIN_W:
+            return
+        pages = [
+            (
+                "Playback and exit",
+                [
+                    ("Space", "Play or pause"),
+                    ("n / p", "Next / previous track"),
+                    ("← / →", "Seek back / forward 10 seconds"),
+                    ("+ / =", "Raise the volume"),
+                    ("-", "Lower the volume"),
+                    ("s", "Toggle shuffle"),
+                    ("r", "Cycle repeat mode"),
+                    ("h", "Like or unlike current track"),
+                    ("o", "Open current artist profile"),
+                    ("q", "Exit Litefy; playback continues"),
+                    ("Q", "Pause; stop Litefy-started Spotifyd and exit"),
+                ],
+            ),
+            (
+                "Search, library, and lists",
+                [
+                    ("/", "Search Spotify"),
+                    ("l / f", "Open playlists / liked songs"),
+                    ("u / d", "Open queue / Spotifyd devices"),
+                    ("↑ / ↓", "Select a result"),
+                    ("Enter", "Open artist or album / play song"),
+                    ("← / →", "Switch search tabs"),
+                    ("a", "Add selected song to queue"),
+                    ("P", "Play selected list"),
+                    ("A / X", "Save / remove selected song"),
+                    ("m", "Add selected or playing song to playlist"),
+                    ("Esc", "Go back"),
+                ],
+            ),
+        ]
+        title, entries = pages[self.help_page]
+        box_w = min(w - 4, 80)
+        box_h = len(entries) + 7
+        x0 = max(0, (w - box_w) // 2)
+        y0 = max(0, (h - box_h) // 2)
+        inner_w = box_w - 4
+        key_w = 14
+        desc_w = inner_w - key_w - 1
+        accent = curses.color_pair(1) | curses.A_BOLD
+        dim = curses.A_DIM
+
+        self.put(y0, x0, "┌" + "─" * (box_w - 2) + "┐", accent)
+        self.put(y0 + 1, x0 + 2, clip(f"LITEFY SHORTCUT GUIDE · {title}", inner_w), accent)
+        self.put(y0 + 2, x0, "├" + "─" * (box_w - 2) + "┤", dim)
+        self.put(y0 + 3, x0 + 2, "KEY", accent)
+        self.put(y0 + 3, x0 + 2 + key_w, "ACTION", accent)
+
+        for index, (key, action) in enumerate(entries):
+            row_y = y0 + 4 + index
+            self.put(row_y, x0, "│" + " " * (box_w - 2) + "│")
+            self.put(row_y, x0 + 2, clip(key, key_w), accent)
+            self.put(row_y, x0 + 2 + key_w, clip(action, desc_w))
+
+        footer_y = y0 + box_h - 2
+        footer = f"{self.help_page + 1}/2 · Tab/←/→ Next page · ?/Esc Close"
+        self.put(footer_y, x0, "├" + "─" * (box_w - 2) + "┤", dim)
+        self.put(footer_y + 1, x0 + 2, clip(footer, inner_w), dim)
+        self.put(y0 + box_h - 1, x0, "└" + "─" * (box_w - 2) + "┘", dim)
 
     def draw_topline(self, w: int):
         """Give the player a clear identity and show the current connection."""
@@ -1131,7 +1207,7 @@ class UI:
         self.put(7, x + len(left) + 1 + filled, "─" * (bar_w - filled), dim)
         self.put(7, x + len(left) + bar_w + 2, right_time, dim)
 
-        parts = ["▶ playing" if st.is_playing else "⏸ paused"]
+        parts = ["⏸ playing" if st.is_playing else "▶ paused"]
         if st.volume is not None:
             parts.append(f"vol {st.volume}%")
         if st.shuffle:
@@ -1202,7 +1278,6 @@ class UI:
             self.put(h - 3, 2, hint, curses.A_DIM)
         else:
             self.put(h - 4, 2, hint, curses.A_DIM)
-            self.put(h - 3, 2, HINT_HOME_LIB, curses.A_DIM)
         # h - 2 is intentionally blank as a small gap before the message row.
         if msg:
             self.put(h - 1, 2, msg, curses.color_pair(3) | curses.A_BOLD)
@@ -1226,6 +1301,14 @@ class UI:
         return text.strip()
 
     def handle_key(self, ch: int):
+        if self.help_page is not None:
+            if ch in (ord("?"), 27):
+                self.help_page = None
+            elif ch in (curses.KEY_RIGHT, ord("\t")):
+                self.help_page = (self.help_page + 1) % 2
+            elif ch == curses.KEY_LEFT:
+                self.help_page = (self.help_page - 1) % 2
+            return
         if self.browser.active and ch in self.list_keys:
             self.list_keys[ch]()
         elif ch in self.global_keys:

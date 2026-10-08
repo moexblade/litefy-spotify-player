@@ -64,6 +64,7 @@ If Spotifyd cannot open audio, check that PulseAudio or PipeWire's PulseAudio co
 - `/` search songs and artists; use **←/→** to switch search tabs.
 - **↑/↓** select a result; **Enter** opens an artist or album, or plays a song.
 - **o** opens the primary artist profile for the current track.
+- **?** opens the named shortcut guide; use **Tab** or **←/→** to switch pages, and **Esc** to close it.
 - **q** quits Litefy and leaves Spotifyd playback running; **Q** pauses playback, stops Spotifyd if Litefy started it, and quits.
 - **Space** toggles playback; **n/p** skips tracks.
 - The footer shows the other available controls.
